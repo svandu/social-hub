@@ -1,1 +1,1 @@
-export const DB_NAME = "social-hub"
+// export const DB_NAME = "social-hub"
