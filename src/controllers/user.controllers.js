@@ -116,7 +116,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
   // remove password and refresh token field from response
   if (!createdUser) {
-    throw new ApiError(500, "Something went wrong whole registering user");
+    throw new ApiError(500, "Something went wrong while registering user");
   }
 
   return res
@@ -232,7 +232,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
   const incommingRefreshToken =
     req.cookie.refreshToken || req.body.refreshToken;
 
-  if (incommingRefreshToken) {
+  if (!incommingRefreshToken) {
     throw new ApiError(401, "unauthorized request");
   }
   try {
