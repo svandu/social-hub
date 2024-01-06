@@ -3,7 +3,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
-import jwt from "jsonwebtoken"
+import jwt from "jsonwebtoken";
 
 const generateAccessandRefreshTokens = async (userId) => {
   try {
@@ -285,4 +285,146 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
   }
 });
 
-export { registerUser, loginUser, logOutUser, getAllUser, refreshAccessToken };
+const changeCurrentPassword = asyncHandler(async (req, res) => {
+  // to get the old password and the new password from teh reques body
+  const { oldPassword, newPassword } = req.body;
+
+  // but if we need the condition that the new password and hte confirm password is same or not then
+
+  // const {oldPassword, newPassword, confPassword} = req.body;
+  // if(!(newPassword || confPassword)) {
+  //   throw new ApiError(400, "Password not match");
+  // }
+
+  // use of ?. defines that if the req.user is undefined or null then it could not throw TypeError it will give undefined.
+
+  const user = await User.findById(req.user?._id);
+
+  // check whether the possword written is correct with perivious password or not
+  const isPasswordCorrect = await user.isPasswordCorrect(oldPassword);
+
+  if (!isPasswordCorrect) {
+    throw new ApiError(400, "Invalide password");
+  }
+
+  // save the previous passoword to new password
+  user.password = newPassword;
+  await user.save({ validateBeforeSave: false });
+
+  return res.status(200).json(200, {}, "Password changed successfully");
+});
+
+//to get the data of current user
+const getCurrentUser = asyncHandler(async (req, res) => {
+  return res
+    .status(200)
+    .json(200, req.uiser, "Current user fetched successfully");
+});
+
+const updateAccountDetails = asyncHandler(async (req, res) => {
+  const { fullName, email } = req.body;
+
+  if (!fullName || !email) {
+    throw new ApiError(400, "All fields are required");
+  }
+
+  const user = await User.findByIdAndUpdate(
+    req.user?._id,
+    {
+      $set: {
+        fullName,
+        email, // can write these in email: email format
+      },
+    },
+    { new: true } // use of new: true means the information will come after the updatation
+  ).select("-password"); // this field will not shown
+
+  return (
+    res.status(200),
+    json(new ApiResponse(200, user, "Account details upldate successfully"))
+  );
+});
+
+const updateUserAvatar = asyncHandler(async (req, res) => {
+  const avatarLocalPath = req.file?.path;
+
+  if (!avatarLocalPath) {
+    throw new ApiError(400, "Avatar file is missing");
+  }
+
+  const avatar = await uploadOnCloudinary(avatarLocalPath);
+
+  if (!avatar.url) {
+    throw new ApiError(400, "Error while uploading on avatar");
+  }
+
+  const user = await User.findByIdAndUpdate(
+    req.user?._id,
+    {
+      $set: {
+        avatar: avatar.url,
+      },
+    },
+    { new: true }
+  ).select("-password");
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        user,
+        "Avatar Image uploaded on cloudinary successfully"
+      )
+    );
+});
+
+const updateUserCoverImage = asyncHandler(async (req, res) => {
+  const coverImageLocalPath = req.file?.path;
+
+  if (!coverImageLocalPath) {
+    throw new ApiError(400, "Cover Image is missing");
+  }
+
+  const coverImage = await uploadOnCloudinary(coverImageLocalPath);
+
+  if (!coverImage.url) {
+    throw new ApiError(
+      400,
+      "Error while uploading the cover image on cloudinary"
+    );
+  }
+
+  const user = User.findByIdAndUpdate(
+    req.user?._id,
+    {
+      $set: {
+        coverImage: coverImage.url,
+      },
+    },
+    { new: true }
+  ).select("-password");
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        user,
+        "Cover Image uploaded on cloudinary successfully"
+      )
+    );
+});
+
+export {
+  registerUser,
+  loginUser,
+  logOutUser,
+  getAllUser,
+  refreshAccessToken,
+  changeCurrentPassword,
+  getCurrentUser,
+  updateAccountDetails,
+  updateUserAvatar,
+  updateUserCoverImage
+};
