@@ -14,7 +14,7 @@ const generateAccessandRefreshTokens = async (userId) => {
     const refreshToken = await user.generateRefreshToken();
     const accessToken = await user.generateAccessToken();
 
-    // store the user refresh token in a variable refreshToken
+    // store the user refresh token in a variable refre shToken
     user.refreshToken = refreshToken;
 
     // save the user in a database but apply the condition that not to validate before saving
@@ -329,6 +329,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
   }
 
   const user = await User.findByIdAndUpdate(
+    // use of ?. defines that if the req.user is undefined or null then it could not throw TypeError it will give undefined.
     req.user?._id,
     {
       $set: {
@@ -346,6 +347,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 });
 
 const updateUserAvatar = asyncHandler(async (req, res) => {
+  // use of ?. defines that if the req.user is undefined or null then it could not throw TypeError it will give undefined.
   const avatarLocalPath = req.file?.path;
 
   if (!avatarLocalPath) {
@@ -365,8 +367,8 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
         avatar: avatar.url,
       },
     },
-    { new: true }
-  ).select("-password");
+    { new: true } // use of new: true means the information will come after the updatation
+  ).select("-password"); // field that we dont need
 
   return res
     .status(200)
@@ -380,6 +382,7 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
 });
 
 const updateUserCoverImage = asyncHandler(async (req, res) => {
+  // use of ?. defines that if the req.user is undefined or null then it could not throw TypeError it will give undefined.
   const coverImageLocalPath = req.file?.path;
 
   if (!coverImageLocalPath) {
@@ -402,8 +405,8 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
         coverImage: coverImage.url,
       },
     },
-    { new: true }
-  ).select("-password");
+    { new: true } // use of new: true means the information will come after the updatation
+  ).select("-password"); // field that we dont need
 
   return res
     .status(200)
@@ -412,6 +415,136 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
         200,
         user,
         "Cover Image uploaded on cloudinary successfully"
+      )
+    );
+});
+
+const getUserChannelProfile = asyncHandler(async (req, res) => {
+  const { username } = req.params;
+
+  if (!username?.trim()) {
+    throw new ApiError(400, "username is not found");
+  }
+
+  //pipeline added
+  const channel = await User.aggregate([
+    {
+      $match: {
+        username: username?.toLowerCase(),
+      },
+    },
+    {
+      //  $lookup stage is used to perform a left outer join between documents from the current collection and documents from another collection.
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "channel",
+        as: "subscribers",
+      },
+    },
+    {
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "subscriber",
+        as: "subscribedTo",
+      },
+    },
+    {
+      $addFields: {
+        subscribersCount: {
+          $size: "$subscribers",
+        },
+        channelSubscribedToCount: {
+          $size: "$subscribedTo",
+        },
+        isSubscribed: {
+          $cond: {
+            if: { $in: [req.user?._id, "$subscribers.subscriber"] },
+            then: true,
+            else: false,
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        fullName: 1,
+        username: 1,
+        subscribersCount: 1,
+        channelSubscribedToCount: 1,
+        isSubscribed: 1,
+        avatar: 1,
+        coverImage: 1,
+        email: 1,
+      },
+    },
+  ]);
+
+  if (!channel?.length) {
+    throw new ApiError(404, "channel does not exists");
+  }
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(200, channel[0], "User channel fetched successfully")
+    );
+
+  // console.log(channel);
+});
+
+const getWatchHistory = asyncHandler(async (req, res) => {
+  const user = await User.aggregate([
+    {
+      $match: {
+        _id: new mongoose.Types.ObjectId(req.user._id),
+      },
+    },
+    {
+      $lookup: {
+        from: "videos", // from which model we want lookup
+        localField: "watchHistory", // name of the field to lookup
+        foreignField: "_id", // name of the foreign field id
+        as: "watchHistory", // name of the property in user
+        pipeline: [
+          {
+            $lookup: {
+              from: "users",
+              localField: "owner",
+              foreignField: "_id",
+              as: "owner",
+              pipeline: [
+                {
+                  $project: {
+                    // field required and show about owner
+                    fullName: 1,
+                    username: 1,
+                    avatar: 1,
+                  },
+                },
+              ],
+            },
+          },
+          {
+            $addFields: {
+              owner: {
+                $first: "$owner",
+              },
+            },
+          },
+        ],
+      },
+    },
+  ]);
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        user[0].wathcHistory,
+        "Watch history fetched sucessfully"
       )
     );
 });
@@ -426,5 +559,7 @@ export {
   getCurrentUser,
   updateAccountDetails,
   updateUserAvatar,
-  updateUserCoverImage
+  updateUserCoverImage,
+  getUserChannelProfile,
+  getWatchHistory,
 };
