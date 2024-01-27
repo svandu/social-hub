@@ -53,7 +53,7 @@ router
 
 router
   .route("/coverImage")
-  .patch(verifyJWT, upload.single("/coverImage"), updateUserCoverImage);
+  .patch(verifyJWT, upload.single("coverImage"), updateUserCoverImage);
 
 router.route("/c/:username").get(verifyJWT, getUserChannelProfile);
 
